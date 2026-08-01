@@ -3,6 +3,8 @@ import zipfile
 import xarray as xr
 import pandas as pd
 
+#This script is to convert and clean the CAMS dataset
+#I only convert the time zone at this scipt because I only investigate the hourly pattern at here. 
 zip_path = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\CAMS_BACHOK_peninsular.zip"
 extract_dir = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_subsetted_CAMS\CAMS_NETCDF_FILE"
 excel_output_path = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_subsetted_CAMS\Bachok_CAMS_PM25.xlsx"

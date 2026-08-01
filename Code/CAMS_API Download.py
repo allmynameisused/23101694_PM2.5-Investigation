@@ -1,5 +1,6 @@
 import cdsapi
 
+#This code is to extract CAMS PM2.5 from CDS 
 dataset = "cams-global-reanalysis-eac4"
 request = {
     "variable": ["particulate_matter_2.5um"],

@@ -10,9 +10,9 @@ file_path_CAMS = r"C:\Users\User\OneDrive\Documents\FYP code submission version\
 file_path_IOES = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_datasets.csv"
 output_path = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Picture"
 # Load datasets 
-print("Reading CAMS dataset...")
+print("Reading CAMS dataset")
 df = pd.read_excel(file_path_CAMS)
-print("Reading IOES dataset...")
+print("Reading IOES dataset")
 dx = pd.read_csv(file_path_IOES)
 
 # Clean column names immediately to remove trailing spaces or weird characters
@@ -85,7 +85,7 @@ dx['DayOfWeek'] = dx[date_col_IOES].dt.day_name()
 
 
 print("\n" + "="*55)
-print("          COMPARATIVE SEASONAL TRENDS (MONTHLY)        ") 
+print("COMPARATIVE SEASONAL TRENDS (MONTHLY)") 
 print("="*55)
 cams_monthly = df.groupby('Month')[pm25_col_CAMS].mean()
 ioes_monthly = dx.groupby('Month')[pm25_col_IOES].mean()
@@ -94,7 +94,7 @@ comparison_month_df = pd.DataFrame({'CAMS_Mean': cams_monthly, 'IOES_Mean': ioes
 print(comparison_month_df.to_string())
 
 print("\n" + "="*55)
-print("          COMPARATIVE WEEKLY TRENDS (DAY OF WEEK)      ")
+print("COMPARATIVE WEEKLY TRENDS (DAY OF WEEK)")
 print("="*55)
 days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 cams_weekly = df.groupby('DayOfWeek')[pm25_col_CAMS].mean().reindex(days_order)
