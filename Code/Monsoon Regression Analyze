@@ -1,0 +1,130 @@
+import os
+import pandas as pd
+import numpy as np 
+import matplotlib.pyplot as plt
+import scipy.stats as stats
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+
+class DataAnalyzer: 
+    def __init__(self):
+        self.cams_data = None
+        self.ioes_data = None 
+        self.merged_data = None
+
+    def load_CAMS_data(self, file_path=None): 
+        if file_path is None:
+            file_path = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_CAMS_PM25_Averaged.xlsx"
+        
+        df = pd.read_excel(file_path)
+        df.columns = df.columns.str.strip()
+        df['valid_date'] = pd.to_datetime(df['valid_date'])
+        self.cams_data = df[['valid_date', 'PM2.5 (ug/m3)']].rename(
+            columns={'valid_date': 'Date', 'PM2.5 (ug/m3)': 'CAMS_PM25'}
+        )
+        print("CAMS Data successfully loaded!")
+
+    def load_IOES_data(self, file_path=None): 
+        if file_path is None:
+            file_path = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_datasets.csv"
+        
+        df = pd.read_csv(file_path)
+        df.columns = df.columns.str.strip()
+        df['date'] = pd.to_datetime(df['date'], dayfirst=True, errors='coerce')
+        self.ioes_data = df[['date', 'pm25']].rename(
+            columns={'date': 'Date', 'pm25': 'Ground_PM25'}
+        )
+        print("IOES Ground Data successfully loaded!")
+    
+    def merge_datasets(self):
+        if self.cams_data is None or self.ioes_data is None:
+            raise ValueError("Both datasets must be loaded before merging.")
+        self.merged_data = pd.merge(self.cams_data, self.ioes_data, on='Date').dropna()
+        print(f"Datasets successfully merged! Total matched days: {len(self.merged_data)}")
+
+    def analyze_monsoons(self):
+        if self.merged_data is None:
+            self.merge_datasets()
+            
+        df = self.merged_data.copy()
+        df['Month'] = df['Date'].dt.month
+        
+        # Define monsoon season filters
+        # Northeast Monsoon: Nov (11), Dec (12), Jan (1), Feb (2)
+        nem_df = df[df['Month'].isin([11, 12, 1, 2])]
+        # Southwest Monsoon: June (6), July (7), Aug (8), Sept (9)
+        swm_df = df[df['Month'].isin([6, 7, 8, 9])]
+        
+        seasons = {
+            'Northeast Monsoon (Nov-Feb)': nem_df,
+            'Southwest Monsoon (Jun-Sep)': swm_df
+        }
+        
+        # Set up a side-by-side plot comparison
+        fig, axes = plt.subplots(1, 2, figsize=(15, 6), sharex=True, sharey=True)
+        
+        for ax, (season_name, season_df) in zip(axes, seasons.items()):
+            if season_df.empty:
+                print(f"No data available for {season_name}.")
+                continue
+                
+            x = season_df['Ground_PM25'].values
+            y = season_df['CAMS_PM25'].values
+            
+            # Calculate linear regression and errors
+            slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+            r_squared = r_value ** 2
+            rmse = np.sqrt(mean_squared_error(x, y))
+            mae = mean_absolute_error(x, y)
+            mbe = np.mean(y - x)
+            
+            print(f"\n--- Statistical Results: {season_name} ---")
+            print(f"Data Points (Days): {len(season_df)}")
+            print(f"R² Coefficient    : {r_squared:.3f}")
+            print(f"RMSE              : {rmse:.2f} ug/m3")
+            print(f"MAE               : {mae:.2f} ug/m3")
+            print(f"MBE (Bias)        : {mbe:.2f} ug/m3")
+            
+            # Scatter plot of data points
+            ax.scatter(x, y, alpha=0.6, color='teal' if 'Northeast' in season_name else 'coral', 
+                       edgecolors='k', s=25, label='Daily Records')
+            
+            # Generate trendline data bounds
+            x_range = np.linspace(0, max(df['Ground_PM25'].max(), df['CAMS_PM25'].max()), 100)
+            y_trend = slope * x_range + intercept
+            
+            # Plot Regression Line vs 1:1 Reference Perfect Match Line
+            ax.plot(x_range, y_trend, color='red', linestyle='-', linewidth=2, 
+                    label=f'Fit: $Y = {slope:.2f}X + {intercept:.1f}$')
+            ax.plot([0, 150], [0, 150], color='gray', linestyle='--', alpha=0.7, label='1:1 Line')
+            
+            # Text box positioning inside charts
+            stats_box = (f"$R^2 = {r_squared:.2f}$\n"
+                         f"RMSE = {rmse:.1f}\n"
+                         f"MBE = {mbe:+.1f}\n"
+                         f"N = {len(season_df)}")
+            ax.text(0.05, 0.95, stats_box, transform=ax.transAxes, fontsize=11,
+                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+            
+            # Chart settings
+            ax.set_title(season_name, fontsize=12, fontweight='bold')
+            ax.set_xlabel(r'IOES Ground Station $PM_{2.5}$ ($\mu g / m^3$)', fontsize=10)
+            ax.set_ylabel(r'CAMS Reanalysis $PM_{2.5}$ ($\mu g / m^3$)', fontsize=10)
+            ax.set_xlim(0, max(x.max(), y.max()) + 5)
+            ax.set_ylim(0, max(x.max(), y.max()) + 5)
+            ax.grid(True, linestyle=':', alpha=0.6)
+            ax.legend(loc='lower right')
+
+        plt.suptitle("Seasonal Linear Regression Analysis (CAMS Performance Comparison)", fontsize=14, fontweight='bold', y=1.02)
+        plt.tight_layout()
+        
+        # Save output graphic
+        output_path = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Picture\monsoon_regression_comparison.png"
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        print(f"\nSeasonal comparison graph saved successfully to:\n{output_path}")
+        plt.show()
+
+if __name__ == "__main__":
+    analyzer = DataAnalyzer()
+    analyzer.load_CAMS_data()
+    analyzer.load_IOES_data()
+    analyzer.analyze_monsoons()

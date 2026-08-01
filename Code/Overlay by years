@@ -1,0 +1,87 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Set clean visualization style
+sns.set_theme(style="whitegrid", font="sans-serif")
+
+# Load Datasets
+cams_df = pd.read_excel(r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_subsetted_CAMS\Bachok_CAMS_PM25_Averaged.xlsx")
+ground_df = pd.read_csv(r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_datasets.csv")
+
+# Clean column headers
+cams_df.columns = cams_df.columns.str.strip()
+ground_df.columns = ground_df.columns.str.strip()
+
+# Standardize names
+cams_df = cams_df[['valid_date', 'PM2.5 (ug/m3)']].rename(columns={'valid_date': 'Date', 'PM2.5 (ug/m3)': 'CAMS_PM25'})
+ground_df = ground_df[['date', 'pm25']].rename(columns={'date': 'Date', 'pm25': 'Ground_PM25'})
+
+# Convert to Datetime
+cams_df['Date'] = pd.to_datetime(cams_df['Date'])
+ground_df['Date'] = pd.to_datetime(ground_df['Date'], dayfirst=True, errors='coerce')
+
+# Merge on common dates
+merged_df = pd.merge(cams_df, ground_df, on='Date').dropna()
+
+# Extract Year and Month
+merged_df['Year'] = merged_df['Date'].dt.year
+merged_df['Month'] = merged_df['Date'].dt.month
+
+# Compute Monthly Averages per Year for both sources
+monthly_yearly = merged_df.groupby(['Year', 'Month'])[['CAMS_PM25', 'Ground_PM25']].mean().reset_index()
+
+# Month Labels
+month_labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+unique_years = sorted(monthly_yearly['Year'].unique())
+
+# Generate a distinct color palette for each year
+palette = sns.color_palette("tab10", n_colors=len(unique_years))
+color_map = dict(zip(unique_years, palette))
+
+# Create Side-by-Side Plots (1 Row, 2 Columns)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6), sharey=True)
+
+# Subplot 1: CAMS Reanalysis
+for year in unique_years:
+    year_data = monthly_yearly[monthly_yearly['Year'] == year]
+    ax1.plot(
+        year_data['Month'], year_data['CAMS_PM25'], 
+        marker='o', markersize=4, linewidth=1.5, 
+        label=str(year), color=color_map[year]
+    )
+
+ax1.set_title("CAMS Reanalysis: Seasonal Overlay by Year", fontsize=12, fontweight='bold', pad=12)
+ax1.set_xlabel("Month", fontsize=10)
+ax1.set_ylabel(r"Average $\mathrm{PM}_{2.5}$ ($\mu\mathrm{g}/\mathrm{m}^3$)", fontsize=10)
+ax1.set_xticks(range(1, 13))
+ax1.set_xticklabels(month_labels)
+ax1.grid(True, linestyle='--', alpha=0.5)
+
+# Subplot 2: Bachok Station
+for year in unique_years:
+    year_data = monthly_yearly[monthly_yearly['Year'] == year]
+    ax2.plot(
+        year_data['Month'], year_data['Ground_PM25'], 
+        marker='o', markersize=4, linewidth=1.5, 
+        label=str(year), color=color_map[year]
+    )
+
+ax2.set_title("Bachok Station: Seasonal Overlay by Year", fontsize=12, fontweight='bold', pad=12)
+ax2.set_xlabel("Month", fontsize=10)
+ax2.set_xticks(range(1, 13))
+ax2.set_xticklabels(month_labels)
+ax2.grid(True, linestyle='--', alpha=0.5)
+
+# Add Outer Legend
+handles, labels = ax1.get_legend_handles_labels()
+ax2.legend(
+    handles, labels, title="Year", 
+    bbox_to_anchor=(1.02, 1), loc='upper left', 
+    frameon=True, edgecolor='#cccccc'
+)
+
+plt.tight_layout()
+plt.savefig(r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Picture\seasonal_overlay_by_year.png", dpi=300, bbox_inches='tight')
+plt.show()
+
