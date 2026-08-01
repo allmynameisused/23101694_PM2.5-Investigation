@@ -1,0 +1,146 @@
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from mpl_toolkits.mplot3d import Axes3D
+import scipy.stats as stats
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+
+# 1. Load your daily averaged datasets
+print("Loading datasets...")
+cams_df = pd.read_excel(r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_CAMS_PM25_Averaged.xlsx")
+ground_df = pd.read_csv(r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_datasets.csv")
+
+# Clean hidden spaces from column headers just in case
+cams_df.columns = cams_df.columns.str.strip()
+ground_df.columns = ground_df.columns.str.strip()
+
+# 2. Extract and rename using your exact column names
+cams_df = cams_df[['valid_date', 'PM2.5 (ug/m3)']].rename(columns={'valid_date': 'Date', 'PM2.5 (ug/m3)': 'CAMS_PM25'})
+ground_df = ground_df[['date', 'pm25']].rename(columns={'date': 'Date', 'pm25': 'Ground_PM25'})
+
+# Convert both 'Date' columns to standard datetime formats
+cams_df['Date'] = pd.to_datetime(cams_df['Date'])
+ground_df['Date'] = pd.to_datetime(ground_df['Date'], dayfirst=True, errors='coerce')
+
+# 3. Merge datasets strictly on the matching 'Date' column
+print("Merging data on matching calendar dates...")
+merged_df = pd.merge(cams_df, ground_df, on='Date').dropna().sort_values(by='Date')
+
+if merged_df.empty:
+    raise ValueError("Error: No overlapping dates found between CAMS and IOES Ground datasets. Double-check your date ranges!")
+
+# Extract Year column for grouping
+merged_df['Year'] = merged_df['Date'].dt.year
+unique_years = sorted(merged_df['Year'].unique())
+
+print(f"Found data for years: {unique_years}. Generating separate 3D plots with logarithmic scales...")
+
+# 4. Loop through each year to create individual 3D diagrams
+for year in unique_years:
+    print(f"\nProcessing year: {year}...")
+    
+    # Filter data for the specific year
+    year_df = merged_df[merged_df['Year'] == year]
+    
+    x_orig = year_df['Ground_PM25'].values
+    y_orig = year_df['CAMS_PM25'].values
+    
+    # --- FIX 1: Manually log10 transform values to prevent mplot3d breakdown ---
+    # Ensure values are > 0 for log safety
+    x_safe = np.maximum(x_orig, 1.0)
+    y_safe = np.maximum(y_orig, 1.0)
+    
+    x = np.log10(x_safe)
+    y = np.log10(y_safe)
+    
+    # Convert dates to numerical ordinals for the Z-axis
+    z_dates = mdates.date2num(year_df['Date'])
+    
+    # Calculate Relationship Statistics (on original un-logged values)
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x_orig, y_orig)
+    r_squared = r_value ** 2
+    rmse = np.sqrt(mean_squared_error(x_orig, y_orig))
+    mae = mean_absolute_error(x_orig, y_orig)
+    mbe = np.mean(y_orig - x_orig)
+    
+    print(f"  [{year}] Paired Days: {len(year_df)} | R²: {r_squared:.3f} | RMSE: {rmse:.3f} | MBE: {mbe:.3f}")
+
+    # Create 3D Plot
+    fig = plt.figure(figsize=(11, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # DO NOT use ax.set_xscale('log') here!
+
+    # 3D Scatter points
+    sc = ax.scatter(x, y, z_dates, c=z_dates, cmap='plasma', alpha=0.8, edgecolor='k', label='Daily Data Points')
+    
+    # --- FIX 2: Compute logarithmic limits & 1:1 line in log space ---
+    min_log = np.log10(max(1.0, min(x_orig.min(), y_orig.min())))
+    max_log = np.log10(max(x_orig.max(), y_orig.max()))
+    
+    # Add 1:1 Line in log space
+    ax.plot([min_log, max_log], [min_log, max_log], [z_dates.min(), z_dates.max()], 
+            color='gray', linestyle='--', linewidth=1.5, label='1:1 Line')
+    
+    # Add Regression Line (Log-transformed)
+    sort_idx = np.argsort(x_orig)
+    reg_y_orig = slope * x_orig + intercept
+    reg_y_safe = np.maximum(reg_y_orig, 1.0)
+    reg_y_log = np.log10(reg_y_safe)
+    
+    ax.plot(x[sort_idx], reg_y_log[sort_idx], z_dates[sort_idx], 
+            color='red', linewidth=2, label=f'Regression (R² = {r_squared:.2f})')
+    
+    # --- FIX 3: Custom human-readable log ticks on X and Y axes ---
+    # Define major tick values in original scale
+    tick_values = [1, 5, 10, 20, 50, 100]
+    # Keep only ticks that fall within current dataset limits
+    tick_values = [v for v in tick_values if min_log <= np.log10(v) <= max_log * 1.1]
+    
+    log_ticks = np.log10(tick_values)
+    tick_labels = [str(v) for v in tick_values]
+    
+    ax.set_xticks(log_ticks)
+    ax.set_xticklabels(tick_labels)
+    ax.set_yticks(log_ticks)
+    ax.set_yticklabels(tick_labels)
+    
+    # Format Z Axis as human-readable dates
+    ax.zaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    ax.zaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    
+    # Set Axis Limits
+    ax.set_xlim(min_log, max_log * 1.05)
+    ax.set_ylim(min_log, max_log * 1.05)
+    
+    # Axis Labels
+    ax.set_xlabel(r"IOES Ground Station $PM_{2.5}$ ($\mu g / m^3$)", fontsize=10, fontweight='bold', labelpad=10)
+    ax.set_ylabel(r"CAMS Reanalysis $PM_{2.5}$ ($\mu g / m^3$)", fontsize=10, fontweight='bold', labelpad=10)
+    ax.set_zlabel("Observation Date", fontsize=10, fontweight='bold', labelpad=12)
+    ax.set_title(f"3D Validation Plot ({year}):\nIOES Ground vs CAMS Reanalysis (Log Scale)", fontsize=12, fontweight='bold', pad=20)
+    
+    # Stats Box
+    stats_text = f"r = {r_value:.2f}\n$R^2$ = {r_squared:.2f}\nRMSE = {rmse:.1f}\nMBE = {mbe:.1f}"
+    ax.text2D(0.05, 0.92, stats_text, transform=ax.transAxes, fontsize=10,
+              verticalalignment='top', bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+    
+    # Colorbar
+    cbar = fig.colorbar(sc, ax=ax, pad=0.1, shrink=0.6, aspect=12)
+    cbar.ax.yaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    cbar.ax.yaxis.set_major_formatter(mdates.DateFormatter('%b'))
+    cbar.set_label(f'Timeline Progression ({year})')
+    
+    # --- FIX 4: Explicit 3D camera angle and box aspect ratio ---
+    ax.set_box_aspect([1, 1, 1])  # Keep bounding box cube symmetrical
+    ax.view_init(elev=25, azim=-55) # Clear isometric perspective view
+    
+    # Save & Show
+    output_plot_path = f"C:\\Users\\User\\OneDrive\\Documents\\FYP code submission version\\23101694_PM2.5-Investigation\\Picture\\cams_ground_relationship_3D_{year}.png"
+    plt.savefig(output_plot_path, dpi=300, bbox_inches='tight')
+    print(f"  Saved plot to: cams_ground_relationship_3D_{year}.png")
+    
+    plt.show()
+
+print("\nAll yearly log-scale 3D validation plots have been generated!")
