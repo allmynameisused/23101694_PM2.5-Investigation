@@ -20,5 +20,5 @@ client = cdsapi.Client(
 )
 
 print("Connecting to Atmosphere Data Store and requesting Bachok PM2.5 data")
-client.retrieve(dataset, request).download("CAMS_BACHOK_Data.zip")
+client.retrieve(dataset, request).download("CAMS_BACHOK_peninsular.zip")
 print("Download Complete!")
