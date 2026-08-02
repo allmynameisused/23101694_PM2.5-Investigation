@@ -6,8 +6,12 @@ import seaborn as sns
 sns.set_theme(style="whitegrid", font="sans-serif")
 
 # Load Datasets
-cams_df = pd.read_excel(r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_subsetted_CAMS\Bachok_CAMS_PM25_Averaged.xlsx")
+cams_df = pd.read_excel(
+    r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_CAMS_PM25_Averaged.xlsx",
+    engine="openpyxl"
+)
 ground_df = pd.read_csv(r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_datasets.csv")
+
 
 # Clean column headers
 cams_df.columns = cams_df.columns.str.strip()
