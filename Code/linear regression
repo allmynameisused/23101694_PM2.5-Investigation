@@ -1,0 +1,145 @@
+import os
+import pandas as pd
+import numpy as np 
+import matplotlib.pyplot as plt
+import scipy.stats as stats
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+
+class DataAnalyzer: 
+    def __init__(self):
+        self.cams_data = None
+        self.ioes_data = None 
+        self.merged_data = None
+
+    def load_CAMS_data(self, file_path=None): 
+        if file_path is None:
+            file_path = r"C:\Users\User\OneDrive\Documents\Fyp coding\Bachok_subsetted_CAMS\Bachok_CAMS_PM25_Averaged.xlsx"
+        
+        df = pd.read_excel(file_path)
+        df.columns = df.columns.str.strip()
+        
+        # Dynamically find valid date column
+        cams_date_col = 'valid_date' if 'valid_date' in df.columns else df.columns[0]
+        df[cams_date_col] = pd.to_datetime(df[cams_date_col]).dt.date
+        
+        self.cams_data = df[[cams_date_col, 'PM2.5 (ug/m3)']].rename(
+            columns={cams_date_col: 'Date', 'PM2.5 (ug/m3)': 'CAMS_PM25'}
+        )
+        print("✅ CAMS Data successfully loaded!")
+
+    def load_IOES_data(self, file_path=None): 
+        if file_path is None:
+            file_path = r"C:\Users\User\OneDrive\Documents\Fyp coding\Bachok_datasets.csv"
+        
+        df = pd.read_csv(file_path)
+        df.columns = df.columns.str.strip()
+        
+        # Dynamically find ground date column
+        ground_date_col = 'valid_date' if 'valid_date' in df.columns else ('date' if 'date' in df.columns else df.columns[0])
+        df[ground_date_col] = pd.to_datetime(df[ground_date_col], dayfirst=True, errors='coerce').dt.date
+        
+        # Dynamically find PM2.5 column
+        ground_pm_candidates = [col for col in df.columns if 'pm25' in col.lower() or 'pm2.5' in col.lower()]
+        ground_pm_col = ground_pm_candidates[0] if ground_pm_candidates else df.columns[1]
+        
+        self.ioes_data = df[[ground_date_col, ground_pm_col]].rename(
+            columns={ground_date_col: 'Date', ground_pm_col: 'Ground_PM25'}
+        )
+        print("✅ IOES Ground Data successfully loaded!")
+    
+    def merge_datasets(self):
+        if self.cams_data is None or self.ioes_data is None:
+            raise ValueError("Both datasets must be loaded before merging.")
+        
+        self.merged_data = pd.merge(self.cams_data, self.ioes_data, on='Date').dropna()
+        
+        if self.merged_data.empty:
+            raise ValueError("Error: No matching dates found between datasets!")
+            
+        print(f"✅ Datasets successfully merged! Total matched days: {len(self.merged_data)}")
+
+    def analyze_overall(self):
+        if self.merged_data is None:
+            self.merge_datasets()
+            
+        df = self.merged_data.copy()
+        
+        x = df['Ground_PM25'].values
+        y = df['CAMS_PM25'].values
+        
+        # Calculate overall linear regression and statistical metrics
+        slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+        r_squared = r_value ** 2
+        rmse = np.sqrt(mean_squared_error(x, y))
+        mae = mean_absolute_error(x, y)
+        mbe = np.mean(y - x)  # Mean Bias Error
+        
+        print("\n" + "="*45)
+        print("--- OVERALL STATISTICAL REGRESSION RESULTS ---")
+        print("="*45)
+        print(f"Total Matched Days (N)     : {len(df)}")
+        print(f"Pearson Correlation (r)    : {r_value:.3f}")
+        print(f"Coefficient of Determ. (R²): {r_squared:.3f}")
+        print(f"RMSE                       : {rmse:.2f} ug/m3")
+        print(f"MAE                        : {mae:.2f} ug/m3")
+        print(f"MBE (Mean Bias Error)      : {mbe:+.2f} ug/m3")
+        print(f"Regression Equation        : Y = {slope:.2f}X + {intercept:.2f}")
+        print(f"P-value                    : {p_value:.5f}")
+        print("="*45)
+        
+        # Plotting Overall Scatter & Linear Regression
+        fig, ax = plt.subplots(figsize=(8, 7))
+        
+        # Scatter points
+        ax.scatter(x, y, alpha=0.5, color='#1f77b4', edgecolors='k', linewidths=0.5, s=30, label='Daily Records')
+        
+        # Generate 1:1 line and trendline
+        max_val = max(x.max(), y.max())
+        x_range = np.linspace(0, max_val, 100)
+        y_trend = slope * x_range + intercept
+        
+        # 1:1 Perfect Match Reference Line
+        ax.plot([0, max_val], [0, max_val], color='gray', linestyle='--', linewidth=1.5, label='1:1 Line (Perfect Match)')
+        
+        # Regression Line
+        ax.plot(x_range, y_trend, color='red', linestyle='-', linewidth=2, 
+                label=f'Fit: $Y = {slope:.2f}X + {intercept:.1f}$')
+        
+        # Statistical Text Box Overlay
+        stats_box = (
+            f"$r = {r_value:.2f}$\n"
+            f"$R^2 = {r_squared:.2f}$\n"
+            f"RMSE = {rmse:.1f} $\mu\mathrm{{g}}/\mathrm{{m}}^3$\n"
+            f"MBE = {mbe:+.1f} $\mu\mathrm{{g}}/\mathrm{{m}}^3$\n"
+            f"$N = {len(df)}$"
+        )
+        ax.text(0.05, 0.95, stats_box, transform=ax.transAxes, fontsize=10,
+                verticalalignment='top', bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.9, edgecolor='#ccc'))
+        
+        # Formatting Chart
+        ax.set_title("Overall Linear Regression Analysis:\nIOES Ground Station vs CAMS Reanalysis", fontsize=12, fontweight='bold', pad=15)
+        ax.set_xlabel(r'IOES Ground Station $\mathrm{PM}_{2.5}$ ($\mu\mathrm{g}/\mathrm{m}^3$)', fontsize=11, fontweight='bold')
+        ax.set_ylabel(r'CAMS Reanalysis $\mathrm{PM}_{2.5}$ ($\mu\mathrm{g}/\mathrm{m}^3$)', fontsize=11, fontweight='bold')
+        ax.set_xlim(0, max_val + 5)
+        ax.set_ylim(0, max_val + 5)
+        ax.grid(True, linestyle=':', alpha=0.6)
+        ax.legend(loc='lower right', frameon=True, edgecolor='#ccc')
+        
+        plt.tight_layout()
+        
+        # Save Output
+        output_dir = r"C:\Users\User\OneDrive\Documents\Fyp coding\Bachok_subsetted_CAMS"
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, "overall_linear_regression.png")
+        
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        print(f"\n✅ Overall linear regression plot saved successfully to:\n{output_path}")
+        plt.show()
+
+if __name__ == "__main__":
+    analyzer = DataAnalyzer()
+    analyzer.load_CAMS_data()
+    analyzer.load_IOES_data()
+    
+    # Run overall linear regression analysis
+    analyzer.analyze_overall()
