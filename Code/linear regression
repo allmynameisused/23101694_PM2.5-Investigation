@@ -13,7 +13,7 @@ class DataAnalyzer:
 
     def load_CAMS_data(self, file_path=None): 
         if file_path is None:
-            file_path = r"C:\Users\User\OneDrive\Documents\Fyp coding\Bachok_subsetted_CAMS\Bachok_CAMS_PM25_Averaged.xlsx"
+            file_path = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_CAMS_PM25_Averaged.xlsx"
         
         df = pd.read_excel(file_path)
         df.columns = df.columns.str.strip()
@@ -25,11 +25,11 @@ class DataAnalyzer:
         self.cams_data = df[[cams_date_col, 'PM2.5 (ug/m3)']].rename(
             columns={cams_date_col: 'Date', 'PM2.5 (ug/m3)': 'CAMS_PM25'}
         )
-        print("✅ CAMS Data successfully loaded!")
+        print("CAMS Data loaded")
 
     def load_IOES_data(self, file_path=None): 
         if file_path is None:
-            file_path = r"C:\Users\User\OneDrive\Documents\Fyp coding\Bachok_datasets.csv"
+            file_path = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Bachok_datasets.csv"
         
         df = pd.read_csv(file_path)
         df.columns = df.columns.str.strip()
@@ -45,7 +45,7 @@ class DataAnalyzer:
         self.ioes_data = df[[ground_date_col, ground_pm_col]].rename(
             columns={ground_date_col: 'Date', ground_pm_col: 'Ground_PM25'}
         )
-        print("✅ IOES Ground Data successfully loaded!")
+        print("IOES Ground Data loaded!")
     
     def merge_datasets(self):
         if self.cams_data is None or self.ioes_data is None:
@@ -56,7 +56,7 @@ class DataAnalyzer:
         if self.merged_data.empty:
             raise ValueError("Error: No matching dates found between datasets!")
             
-        print(f"✅ Datasets successfully merged! Total matched days: {len(self.merged_data)}")
+        print(f"Datasets merged. Total matched days: {len(self.merged_data)}")
 
     def analyze_overall(self):
         if self.merged_data is None:
@@ -128,12 +128,12 @@ class DataAnalyzer:
         plt.tight_layout()
         
         # Save Output
-        output_dir = r"C:\Users\User\OneDrive\Documents\Fyp coding\Bachok_subsetted_CAMS"
+        output_dir = r"C:\Users\User\OneDrive\Documents\FYP code submission version\23101694_PM2.5-Investigation\Picture"
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, "overall_linear_regression.png")
         
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
-        print(f"\n✅ Overall linear regression plot saved successfully to:\n{output_path}")
+        print(f"\n Overall linear regression plot saved to:\n{output_path}")
         plt.show()
 
 if __name__ == "__main__":
@@ -141,5 +141,4 @@ if __name__ == "__main__":
     analyzer.load_CAMS_data()
     analyzer.load_IOES_data()
     
-    # Run overall linear regression analysis
     analyzer.analyze_overall()
